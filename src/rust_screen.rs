@@ -17,8 +17,8 @@ pub enum WindowContent {
 impl std::fmt::Display for Window {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut print_text = String::default();
-        for line in &self.text {
-            print_text.push_str(line);
+        for line in self.draw(None).unwrap() {
+            print_text.push_str(&line);
             print_text.push('\n');
         }
         write!(f, "{}", print_text)
@@ -26,16 +26,17 @@ impl std::fmt::Display for Window {
 }
 impl Window {
     pub fn draw(
-        &mut self,
+        &self,
         style: Option<BoxStyle>,
-    ) -> Result<(), DrawBoxError> {
-        for data in self.content.iter_mut() {
+    ) -> Result<Vec<String>, DrawBoxError> {
+        for data in self.content.iter() {
             match data {
                 WindowContent::SubWindow(window) => {
                     window.draw(style);
+                    todo!()
                 },
                 WindowContent::Text(text) => {
-                    
+                    todo!()
                 },
             };
         }
@@ -63,8 +64,7 @@ impl Window {
         replace_letter_2d(&mut new_state.text, x + w, y, style.tr)?;
         replace_letter_2d(&mut new_state.text, x, y + h, style.bl)?;
         replace_letter_2d(&mut new_state.text, x + w, y + h, style.br)?;
-        *self = new_state;
-        Ok(())
+        Ok(new_state.text)
     }
     pub fn new(x: usize, y: usize, width: usize, height: usize, name: Option<String>) -> Self {
         let mut new_vec: Vec<String> = Vec::new();
@@ -73,7 +73,6 @@ impl Window {
         }
         Window { text: new_vec, width:width + 1, height:height + 1, x, y, name, content: Vec::new()}
     }
-    
 }
 #[derive(Debug)]
 pub enum DrawBoxError {
@@ -137,6 +136,10 @@ fn title_bar(data: &mut Vec<String>, x: Range<usize>, y: usize, title: Option<St
             new_title.push(style.horizontal);
             new_title.push_str(&title);
             new_title.push_str(style.horizontal.to_string().repeat(trailing_horizontals).as_str());
+            new_title.push(style.tr);
+        } else if width < 2 {
+            new_title.push(style.tl);
+            new_title.push_str(style.horizontal.to_string().repeat(width).as_str());
             new_title.push(style.tr);
         } else {
             new_title.push(style.tl);
