@@ -29,6 +29,17 @@ impl Window {
         &mut self,
         style: Option<BoxStyle>,
     ) -> Result<(), DrawBoxError> {
+        for data in self.content.iter_mut() {
+            match data {
+                WindowContent::SubWindow(window) => {
+                    window.draw(style);
+                },
+                WindowContent::Text(text) => {
+                    
+                },
+            };
+        }
+
         let w = self.width;
         let h = self.height;
         let x = self.x;
@@ -39,51 +50,15 @@ impl Window {
             Some(style) => style,
             None => BoxStyle::default(),
         };
-        {
-            // if w < 1 || h < 1 || x + w > new_state.width || y + h > new_state.height {
-            //     println!("W or H out of bounds.");
-            //     return Err(DrawBoxError::BoxOutOfBounds);
-            // }
-            let line = match new_state.text.get_mut(y) {
-                Some(ok_val) => ok_val,
-                None => {
-                    println!("Out of bounds");
-                    todo!()
-                    // return Err(DrawBoxError::BoxOutOfBounds);
-                }
-            };
-            println!(
-                "{:?}",
-                index_from_char(line, x).ok_or(DrawBoxError::BoxOutOfBounds)?
-                    ..=index_from_char(line, x + w).ok_or(DrawBoxError::BoxOutOfBounds)?
-            );
-            line.replace_range(
-                index_from_char(line, x).ok_or(DrawBoxError::BoxOutOfBounds)?
-                    ..=index_from_char(line, x + w).ok_or(DrawBoxError::BoxOutOfBounds)?,
-                &title_bar(w, self.name.clone(), style),
-            );
-            let line = match new_state.text.get_mut(y + h) {
-                Some(ok_val) => ok_val,
-                None => {
-                    println!("1) Out of bounds");
-                    todo!()
-                    // return Err(DrawBoxError::BoxOutOfBounds);
-                }
-            };
-            if line.len() < x + w {
-                // return Err(DrawBoxError::BoxOutOfBounds);
-            }
-            line.replace_range(
-                index_from_char(line, x).ok_or(DrawBoxError::BoxOutOfBounds)?
-                    ..=index_from_char(line, x + w).ok_or(DrawBoxError::BoxOutOfBounds)?,
-                &style.horizontal.to_string().as_str().repeat(w + 1),
-            );
+        if let Some(title) = &self.name {
+            new_state.text = title_bar(&mut new_state.text, x..(x + w - 1), y, Some(title.to_owned()) , style)
+        } else {
+            new_state.text = horizontal_line(&mut new_state.text, x..(x + w - 1), y, style)?;
         }
-        println!("Horizontals done");
-        for line_num in (y + 1)..=(y + h) {
-            replace_letter_2d(&mut new_state.text, x, line_num, style.vertical)?;
-            replace_letter_2d(&mut new_state.text, x + w, line_num, style.vertical)?;
-        }
+        new_state.text = horizontal_line(&mut new_state.text, x..(x + w - 1), y + h, style)?;
+        new_state.text = vertical_line(&mut new_state.text, x, y..(y+h - 1), style)?;
+        new_state.text = vertical_line(&mut new_state.text, x + w, (y)..(y+h - 1), style)?;
+        // Placing corners
         replace_letter_2d(&mut new_state.text, x, y, style.tl)?;
         replace_letter_2d(&mut new_state.text, x + w, y, style.tr)?;
         replace_letter_2d(&mut new_state.text, x, y + h, style.bl)?;
@@ -98,19 +73,7 @@ impl Window {
         }
         Window { text: new_vec, width:width + 1, height:height + 1, x, y, name, content: Vec::new()}
     }
-    // pub fn from_vec(data: Vec<String>) -> Option<Self> {
-    //     let mut line_len = None;
-    //     let len = data.len();
-    //     for line in data.iter() {
-    //         if let Some(last_val) = line_len {
-    //             if line.chars().count() != last_val {
-    //                 return None
-    //             }
-    //         }
-    //         line_len = Some(line.chars().count());
-    //     }
-    //     Some(Window { text: data, width: line_len?, height: len, windows: Vec::new(), x, y })
-    // }
+    
 }
 #[derive(Debug)]
 pub enum DrawBoxError {
@@ -162,38 +125,37 @@ fn replace_letter_2d(
         range_from_char(line, x).ok_or(DrawBoxError::BoxOutOfBounds)?,
         new_char.to_string().as_str(),
     );
-    println!("Replaced ({}, {})", x, y);
     Ok(())
 }
-fn title_bar(width: usize, title: Option<String>, style: BoxStyle) -> String {
+fn title_bar(data: &mut Vec<String>, x: Range<usize>, y: usize, title: Option<String>, style: BoxStyle) -> Vec<String> {
+    let mut new_title: String = String::default();
+    let width = x.end - x.start - 2;
     if let Some(title) = title {
         if title.chars().count() + 3 < width {
-            let trailing_horizontals = width - title.chars().count() - 1;
-            let mut new_title = String::default();
+            let trailing_horizontals = width - title.chars().count() + 1;
             new_title.push(style.tl);
             new_title.push(style.horizontal);
             new_title.push_str(&title);
             new_title.push_str(style.horizontal.to_string().repeat(trailing_horizontals).as_str());
-            return new_title;
+            new_title.push(style.tr);
         } else {
-            let trailing_horizontals = width - title.chars().count() - 1;
-            let mut new_title = String::default();
             new_title.push(style.tl);
             new_title.push(style.horizontal);
-            let split_point = index_from_char(&title, width - 4).unwrap();
-            new_title.push_str(&title.split_at(split_point).0);
-            new_title.push_str("...");
-            new_title.push_str(style.horizontal.to_string().repeat(trailing_horizontals).as_str());
+            let split_point = index_from_char(&title, width - 1).unwrap();
+            new_title.push_str(title.split_at(split_point).0);
+            new_title.push_str("..");
             new_title.push(style.tr);
-            return new_title;
         }
     } else {
-        let mut new_title = String::default();
         new_title.push(style.tl);
         new_title.push_str(style.horizontal.to_string().repeat(width).as_str());
         new_title.push(style.tr);
-        return new_title;
     }
+    let mut new_data: Vec<String> = data.clone();
+    for char_num in (x.start + 1)..=(x.end) {
+        replace_letter_2d(&mut new_data, char_num, y, new_title.char_indices().nth(char_num).unwrap().1).unwrap();
+    };
+    new_data
 }
 fn vertical_line(data: &mut Vec<String>, x: usize, y: Range<usize>, style: BoxStyle) -> Result<Vec<String>, DrawBoxError> {
     let mut new_data: Vec<String> = data.clone();
@@ -203,23 +165,9 @@ fn vertical_line(data: &mut Vec<String>, x: usize, y: Range<usize>, style: BoxSt
     Ok(new_data)
 }
 fn horizontal_line(data: &mut Vec<String>, x: Range<usize>, y: usize, style: BoxStyle) -> Result<Vec<String>, DrawBoxError> {
-    let mut new_data = data.clone();
-    let line = match new_data.get_mut(y) {
-        Some(ok_val) => ok_val,
-        None => {
-            println!("Out of bounds");
-            return Err(DrawBoxError::BoxOutOfBounds);
-        }
+    let mut new_data: Vec<String> = data.clone();
+    for char_num in (x.start + 1)..=(x.end) {
+        replace_letter_2d(&mut new_data, char_num, y, style.horizontal)?;
     };
-    println!(
-        "{:?}",
-        index_from_char(line, x.start).ok_or(DrawBoxError::BoxOutOfBounds)?
-            ..=index_from_char(line, x.end).ok_or(DrawBoxError::BoxOutOfBounds)?
-    );
-    line.replace_range(
-        index_from_char(line, x.start).ok_or(DrawBoxError::BoxOutOfBounds)?
-            ..=index_from_char(line, x.end).ok_or(DrawBoxError::BoxOutOfBounds)?,
-            style.horizontal.to_string().as_str(),
-    );
     Ok(new_data)
 }
